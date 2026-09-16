@@ -311,6 +311,21 @@ POLL_SECONDS=60
 how a process declares it does no background work at all, so leave it at 60 anywhere you want
 either.
 
+**Restart the app after connecting a bot**, and after each further one:
+
+```sh
+docker compose restart app
+```
+
+Not superstition, and not optional. Connecting a bot happens inside an HTTP request, which in
+production is a forked web worker — and the polling loop has to run in the cluster primary,
+because two processes polling one bot each get the updates the other never sees. The worker
+hands the job across, the hand-off is launched without being awaited, and a failed hand-off is
+discarded silently. The result is a bot that connects cleanly, whose connector card says
+"receiving by polling", and which receives nothing at all until the next restart. Arlo's own
+source names this exact symptom as a bug it fixed once; it still reproduces. Twenty seconds of
+restart is the whole remedy.
+
 ### WhatsApp, the Baileys way — works anywhere
 
 Drives a real handset over a socket, needs no public address and no Meta account. Press Connect,
@@ -447,6 +462,7 @@ not undone by running an older image.
 | First start takes minutes | It is applying eighty migrations to an empty database. Expected, once |
 | Consent fails immediately, no message | The redirect URI does not match exactly — scheme, host, trailing slash |
 | A connector connects, then silence | Push channel on an address the platform cannot reach, or the Meta app-level subscription in section 5 |
+| Telegram connected, card says "receiving by polling", nothing arrives | The polling loop was started from a web worker and never reached the cluster primary. `docker compose restart app`. Queued messages are not lost — Telegram holds them and delivers the moment the loop starts. `select poll_offset from arlo.telegram_bots` reading NULL is the tell: not one batch has ever been collected |
 | Bot answers "I cannot answer that" to everything | No model key, or no documents to cite. Both are the honest failure, not a bug |
 | Answers miss documents that obviously match | Embeddings are off — section 3 |
 | A crawl fetches nothing | The host is not in `SCRAPE_ALLOW_HOSTS`, subdomains included |
