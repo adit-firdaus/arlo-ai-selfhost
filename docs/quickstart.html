@@ -7,7 +7,7 @@
   @page { size: A4; margin: 11mm 11mm; }
   :root {
     --ink: #111827; --body: #374151; --muted: #6b7280;
-    --line: #e5e7eb; --soft: #f3f4f6; --link: #2563eb; --code: #1f2937;
+    --line: #e5e7eb; --soft: #f3f4f6; --link: #2932e1; --code: #1f2937;
   }
   * { box-sizing: border-box; }
   body {
@@ -16,7 +16,7 @@
   }
   .page { max-width: 186mm; margin: 0 auto; }
   .brand { display: flex; align-items: center; gap: 7px; font-weight: 700; color: var(--ink); font-size: 10pt; margin-bottom: 9px; }
-  .brand .mark { width: 18px; height: 18px; border-radius: 4px; background: linear-gradient(135deg,#e11d48 0 50%,#2563eb 50% 100%); display: inline-block; }
+  .brand .mark { width: 19px; height: 19px; display: inline-block; flex: none; }
   h1 { font-size: 18pt; line-height: 1.12; color: var(--ink); margin: 0 0 6px; letter-spacing: -.02em; }
   h2 { font-size: 10.5pt; color: var(--ink); margin: 13px 0 5px; }
   h3 { font-size: 9.6pt; color: var(--ink); margin: 0 0 4px; }
@@ -46,7 +46,7 @@
 <body>
 <div class="page">
 
-  <div class="brand"><span class="mark"></span> AutoBricks AI</div>
+  <div class="brand"><svg class="mark" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#ffffff" stroke="#ededed" stroke-width="1"/><rect x="10" y="15" width="22" height="10" rx="1.2" fill="#1a1a1a"/><rect x="33" y="15" width="21" height="10" rx="1.2" fill="#1a1a1a" fill-opacity="0.18"/><rect x="10" y="27" width="11" height="10" rx="1.2" fill="#1a1a1a" fill-opacity="0.18"/><rect x="22" y="27" width="22" height="10" rx="1.2" fill="#e1251b"/><rect x="45" y="27" width="9" height="10" rx="1.2" fill="#1a1a1a" fill-opacity="0.18"/><rect x="10" y="39" width="21" height="10" rx="1.2" fill="#2932e1"/><rect x="32" y="39" width="22" height="10" rx="1.2" fill="#1a1a1a" fill-opacity="0.18"/></svg> AutoBricks AI</div>
 
   <h1>Arlo Self-Hosted — How to Run It</h1>
   <p class="lede">Run <strong>Arlo</strong> on your own computer. Everything runs in Docker — when it's up, open
