@@ -1,8 +1,10 @@
 # Arlo, self-hosted: the full setup
 
-`README.md` gets Arlo running in four commands. This is everything after that — a public
-address, the model key, the knowledge base, and each of the eight channels a customer can
-arrive on. Work down it in order; every section assumes the ones above it.
+Everything, from an empty machine to a bot answering customers on the channel they turned up
+on. Section 1 is the install and takes about ten minutes, most of it waiting; the rest is
+configuration you can do in any order, on any day after.
+
+Work down it as written — every section assumes the ones above it.
 
 `SETUP.md` beside this file is the *other* audience: an agent installing the basic stack on a
 course student's laptop, scoped to "it runs and you can sign in". If that is what you want,
@@ -24,7 +26,57 @@ section 2 — you just get the pull half.
 
 ---
 
-## 1. A public address
+## 1. Install it
+
+**Before you start.** Docker Desktop, installed and running. On Windows that means the WSL 2
+backend — and because `bootstrap.sh` is a shell script, run everything below in **Git Bash or a
+WSL terminal**, not PowerShell. Budget about a gigabyte of disk for the images and the
+database.
+
+```sh
+# 1. Get the files
+git clone https://github.com/adit-firdaus/arlo-ai-selfhost.git arlo
+cd arlo
+
+# 2. Generate every secret. Once, and only once — see the warning below
+./bootstrap.sh http://127.0.0.1:9005 you@example.com
+
+# 3. Start it
+docker compose up -d --wait
+
+# 4. Issue the first registration code
+docker compose exec app node scripts/invite.mjs you@example.com
+```
+
+That last command prints a code and the address to use it at:
+
+```
+  ARLO-XXXX-XXXX
+Register at http://127.0.0.1:9005/login?code=ARLO-XXXX-XXXX
+```
+
+Open it, choose your own password, and you are in. There is no separate registration page — the
+code is what turns sign-in into registration.
+
+**Four things about those four commands.**
+
+The email in step 2 becomes `ADMIN_EMAILS`, so it has to be the same address you invite in step
+4: that is the account that can reach `/admin`. The first `docker compose up` pulls about 120MB
+and then applies eighty migrations to an empty database before it serves anything, so give it a
+few minutes and watch `docker compose logs -f app` if you want to see it happen. `bootstrap.sh`
+refuses to run twice, and that refusal is protecting you — rerolling the secrets orphans the
+database volume and makes everything already stored in it unreadable. And `docker compose down`
+is safe, while `docker compose down -v` destroys the database; it is the only command in this
+file that loses anything.
+
+Until you finish section 3, Arlo runs but declines to answer rather than inventing anything.
+That is the designed behaviour and not a broken install.
+
+## 2. A public address
+
+Skip this if Arlo is only ever going to answer you on the machine it runs on — a laptop
+demonstration needs none of it. Everything in section 5 that a platform has to *call*, however,
+starts here.
 
 Arlo publishes on `127.0.0.1:9005` and terminates no TLS of its own. Put a proxy in front.
 Caddy, if you have nothing:
@@ -51,7 +103,7 @@ allow-list refuses, and the symptom is a login that returns to the login page.
 Check it from outside your own network before going on — a proxy that works on the box and not
 from the internet fails every push channel below, several hours later, silently.
 
-## 2. The model key
+## 3. The model key
 
 Arlo runs with no key at all: retrieval falls back to Postgres full-text search and the bot
 declines rather than inventing an answer. To have it answer, sign in and open **Settings → the
@@ -79,7 +131,7 @@ Anything speaking OpenAI's `/v1/embeddings` works, including a local server — 
 is for when that endpoint has a key of its own. Chunks already stored with no embedding are
 backfilled in the background once one is configured; nothing needs re-uploading.
 
-## 3. The knowledge base
+## 4. The knowledge base
 
 Upload the documents first and connect a channel second. A bot with nothing to cite hands every
 conversation to a person, which is correct behaviour and a poor demonstration.
@@ -98,7 +150,7 @@ conversation to a person, which is correct behaviour and a poor demonstration.
 
   Subdomains are not implied. List each one.
 
-## 4. The channels
+## 5. The channels
 
 Each of these is a registration you make against your own instance. Set the variables in `.env`
 and `docker compose up -d --wait app` — the connectors page reads them at boot, and a blank pair
@@ -198,7 +250,7 @@ not `google`, because the redirect is built from the connector's own name
 its own app instead of using the instance's. Mailboxes are swept on the `POLL_SECONDS` timer,
 so a `0` there is a mailbox that never gets read.
 
-## 5. People
+## 6. People
 
 Registration is invitation-only the moment `ADMIN_EMAILS` names anybody. The first code has to
 come from a shell, because every later one comes from an administrator and the first
@@ -216,7 +268,7 @@ Optional: Cloudflare Turnstile on the public waitlist form — `TURNSTILE_SITE_K
 `TURNSTILE_SECRET_KEY`. It is the only thing in this app that loads a script from another
 origin, and the content-security-policy is widened for that one page because of it.
 
-## 6. Backups
+## 7. Backups
 
 The database is the product. The volumes beside it are a cache and a phone session.
 
@@ -237,7 +289,7 @@ docker compose exec -T db pg_restore -U postgres -d postgres --clean --if-exists
 docker compose up -d --wait app
 ```
 
-## 7. Upgrading
+## 8. Upgrading
 
 ```sh
 docker compose pull app && docker compose up -d --wait app
@@ -249,7 +301,7 @@ schema that did not catch up is the worse outcome, so that is deliberate. Roll b
 the previous digest in `ARLO_IMAGE` and starting again; note that a migration already applied is
 not undone by running an older image.
 
-## 8. When something is wrong
+## 9. When something is wrong
 
 | What you see | What it actually is |
 |---|---|
@@ -259,9 +311,9 @@ not undone by running an older image.
 | App container restarting on a fresh install | Read the log: a failed migration stops the boot on purpose |
 | First start takes minutes | It is applying eighty migrations to an empty database. Expected, once |
 | Consent fails immediately, no message | The redirect URI does not match exactly — scheme, host, trailing slash |
-| A connector connects, then silence | Push channel on an address the platform cannot reach, or the Meta app-level subscription in section 4 |
+| A connector connects, then silence | Push channel on an address the platform cannot reach, or the Meta app-level subscription in section 5 |
 | Bot answers "I cannot answer that" to everything | No model key, or no documents to cite. Both are the honest failure, not a bug |
-| Answers miss documents that obviously match | Embeddings are off — section 2 |
+| Answers miss documents that obviously match | Embeddings are off — section 3 |
 | A crawl fetches nothing | The host is not in `SCRAPE_ALLOW_HOSTS`, subdomains included |
 
 Logs, for any of it:
