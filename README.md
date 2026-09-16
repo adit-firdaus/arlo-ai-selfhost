@@ -15,11 +15,13 @@ source. `ARLO_IMAGE` in your shell overrides which image that is, and a real ins
 should pin a digest rather than follow the `main` tag.
 
 The image is `ghcr.io/adit-firdaus/arlo-ai-selfhost`, built from the application source and
-published beside this repository, for `linux/amd64` and `linux/arm64` under the one tag. Pin it
-in an installation you care about:
+published beside this repository, for `linux/amd64` and `linux/arm64` under the one tag. It is
+122MB to pull; `:full` is the same image before `Dockerfile.slim` removes what nothing in it
+imports, and is the rollback if something turns out to have been needed after all. Pin the
+digest in an installation you care about:
 
 ```sh
-ARLO_IMAGE=ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:6ecd3666afb9cdb1965ad85abbe3e9a387f4c2cfb1a6ef0853824296239e611f \
+ARLO_IMAGE=ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:24e0e4aeaf0852e35f5adc51f55f5269444754423b554ded8ca1769f777c090c \
   docker compose up -d --wait
 ```
 

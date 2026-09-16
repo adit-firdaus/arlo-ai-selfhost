@@ -1,0 +1,62 @@
+# Everything the image ships that nothing in it imports.
+#
+#   docker buildx build --platform linux/amd64,linux/arm64 --push \
+#     -f Dockerfile.slim -t ghcr.io/adit-firdaus/arlo-ai-selfhost:latest .
+#
+# Built FROM the published image rather than from application source, because this repository
+# has no source — and the pruned tree is copied into a fresh base rather than deleted in place,
+# because a layer that removes a file still carries the layer that added it. Deleting in a child
+# image makes the download bigger, not smaller; this is the only shape that actually shrinks it.
+#
+# `:full` is the unpruned image and stays published. If something here turns out to be needed
+# after all, `ARLO_IMAGE=ghcr.io/adit-firdaus/arlo-ai-selfhost:full` is the whole rollback.
+
+FROM ghcr.io/adit-firdaus/arlo-ai-selfhost:full AS pruned
+USER root
+WORKDIR /opt/arlo
+
+RUN set -eu; \
+    before=$(du -sm node_modules | cut -f1); \
+    \
+    # react-icons ships about twenty-five icon packs and the build imports four. The keep-list
+    # is read out of the built bundle rather than written down here: a Dockerfile holding a
+    # hand-maintained list of packs is a runtime failure waiting for whoever imports a new one,
+    # and it would fail on a page nobody opened during the build.
+    # `lib` is not a pack and is not optional: every pack's index.mjs imports ../lib/index.mjs
+    # for the shared icon renderer, so deleting it is a 500 on the first page that draws an icon
+    # rather than a missing module at boot. It is in the list before anything is read from dist.
+    keep=$(grep -rhoE 'react-icons/[a-z0-9]+' dist | sed 's|react-icons/||' | sort -u); \
+    [ -n "$keep" ] || { echo 'no react-icons packs found in dist — refusing to guess'; exit 1; }; \
+    keep="lib $keep"; \
+    echo "keeping icon packs: $(echo $keep | tr '\n' ' ')"; \
+    for d in node_modules/react-icons/*/; do \
+      p=$(basename "$d"); \
+      case " $(echo $keep | tr '\n' ' ') " in *" $p "*) ;; *) rm -rf "$d" ;; esac; \
+    done; \
+    \
+    # Build tooling that arrives as a *production* dependency of @tanstack/react-start and is
+    # referenced nowhere in dist/: esbuild and its platform binary, babel, prettier, and the two
+    # lightningcss builds. The application is already built — these compile nothing at runtime.
+    rm -rf node_modules/esbuild node_modules/@esbuild node_modules/@babel \
+           node_modules/prettier node_modules/lightningcss node_modules/lightningcss-*; \
+    \
+    after=$(du -sm node_modules | cut -f1); \
+    echo "node_modules: ${before}MB -> ${after}MB"
+
+# A fresh base, so the pruned tree is the only copy of it in the image.
+FROM node:22-alpine
+WORKDIR /opt/arlo
+
+# Repeated from the application Dockerfile rather than inherited, because this stage starts from
+# the base image and not from that one. Keep them in step.
+ENV NODE_ENV=production \
+    HOME=/opt/arlo \
+    HOST=0.0.0.0 \
+    PORT=9005
+
+COPY --from=pruned /opt/arlo /opt/arlo
+USER node
+
+EXPOSE 9005
+# Migrations run inside this process before it forks a worker — see server/prod.mjs.
+CMD ["node", "server/prod.mjs"]

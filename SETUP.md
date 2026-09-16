@@ -292,7 +292,7 @@ name: arlo
 
 services:
   seed:
-    image: ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:6ecd3666afb9cdb1965ad85abbe3e9a387f4c2cfb1a6ef0853824296239e611f
+    image: ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:24e0e4aeaf0852e35f5adc51f55f5269444754423b554ded8ca1769f777c090c
     user: root
     command: sh -c 'cp -a /opt/arlo/initdb/. /seed/'
     volumes: [initdb:/seed]
@@ -351,7 +351,7 @@ services:
         exec nginx -g 'daemon off;'
 
   app:
-    image: ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:6ecd3666afb9cdb1965ad85abbe3e9a387f4c2cfb1a6ef0853824296239e611f
+    image: ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:24e0e4aeaf0852e35f5adc51f55f5269444754423b554ded8ca1769f777c090c
     restart: unless-stopped
     env_file: [.env]
     depends_on:
@@ -468,7 +468,7 @@ That is the end of this runbook.
 Three of the four images are pinned above, by the index digest rather than a per-architecture
 one, so the same line works on a student's amd64 laptop and on an arm64 machine.
 
-`ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:6ecd3666afb9cdb1965ad85abbe3e9a387f4c2cfb1a6ef0853824296239e611f` is the one still to fill, and it cannot be filled until the application
+`ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:24e0e4aeaf0852e35f5adc51f55f5269444754423b554ded8ca1769f777c090c` is the one still to fill, and it cannot be filled until the application
 image is published. Two things, in this order:
 
 1. Publish it. The build lives in the application repository, on the `af-public-compose`
