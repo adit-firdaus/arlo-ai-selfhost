@@ -450,6 +450,9 @@ not undone by running an older image.
 | Bot answers "I cannot answer that" to everything | No model key, or no documents to cite. Both are the honest failure, not a bug |
 | Answers miss documents that obviously match | Embeddings are off — section 3 |
 | A crawl fetches nothing | The host is not in `SCRAPE_ALLOW_HOSTS`, subdomains included |
+| `fetch failed` on a connector that has correct credentials — and only *sometimes* | Node's address-family race. It gives the first family 250ms, and Telegram, Meta, Google and the model gateway are all 180-250ms away, so a late-but-fine handshake is discarded. `bootstrap.sh` sets `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=3000` for this; if your `.env` predates that line, add it and restart the app |
+| Telegram's Connect form says `fetch failed` | The same race — the token is validated with a live `getMe` before anything is stored, so the failure is the call, not the token. Also set `TELEGRAM_POLLING=1` whenever `PUBLIC_URL` is loopback: a webhook Telegram cannot reach fails on every connect attempt before polling takes over |
+| The bot stops answering a thread even after the model key is set | That conversation was handed to a person — `status = human`, and the bot deliberately stays out of a thread somebody took over. Start a fresh one (the widget keeps `arlo.visitor` in `localStorage`; clearing site data starts a new conversation) rather than retrying in the same thread |
 
 Logs, for any of it:
 

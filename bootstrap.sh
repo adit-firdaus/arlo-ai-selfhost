@@ -246,6 +246,19 @@ OCR_CACHE_DIR=/opt/arlo/.ocr-cache
 # OCR downloads a language model on first use. Blank switches reading pictures off.
 OCR_LANGS=eng
 OCR_MAX_PAGES=20
+
+# How long Node gives the first address family before it abandons it and tries the other.
+#
+# The default is 250ms, and every API this app calls is far away: Telegram, Meta, Google and
+# the model gateway are all 180-250ms round trips from most of the world. A handshake that
+# comes back a hair late is thrown away, so outbound calls fail *intermittently* -- two in
+# eight, with the same token and the same network -- and the error is a bare "fetch failed"
+# that looks like a bad credential. It is not: it is a race being lost.
+#
+# Three seconds instead. The cost is only paid on a host where IPv6 is configured but broken,
+# which then waits that long before falling back; a container with no IPv6 route at all gets
+# ENETUNREACH in milliseconds and loses nothing.
+NODE_OPTIONS=--network-family-autoselection-attempt-timeout=3000
 ENV
 
 echo "wrote deploy/selfhost/{.env,db.env,auth.env} (mode 600)"
