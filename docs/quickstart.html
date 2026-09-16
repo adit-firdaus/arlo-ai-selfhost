@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Arlo Self-Hosted — How to Run It</title>
+<style>
+  @page { size: A4; margin: 11mm 11mm; }
+  :root {
+    --ink: #111827; --body: #374151; --muted: #6b7280;
+    --line: #e5e7eb; --soft: #f3f4f6; --link: #2563eb; --code: #1f2937;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--body); background: #fff;
+    font: 9.3pt/1.42 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  .page { max-width: 186mm; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 7px; font-weight: 700; color: var(--ink); font-size: 10pt; margin-bottom: 9px; }
+  .brand .mark { width: 18px; height: 18px; border-radius: 4px; background: linear-gradient(135deg,#e11d48 0 50%,#2563eb 50% 100%); display: inline-block; }
+  h1 { font-size: 18pt; line-height: 1.12; color: var(--ink); margin: 0 0 6px; letter-spacing: -.02em; }
+  h2 { font-size: 10.5pt; color: var(--ink); margin: 13px 0 5px; }
+  h3 { font-size: 9.6pt; color: var(--ink); margin: 0 0 4px; }
+  p { margin: 0 0 5px; }
+  a { color: var(--link); text-decoration: none; }
+  code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  code { font-size: 8.6pt; }
+  .lede { color: var(--body); margin-bottom: 9px; }
+  .note { background: var(--soft); color: var(--muted); font-size: 8.6pt; padding: 7px 10px; border-radius: 5px; margin: 7px 0; }
+  .card { border: 1px solid var(--line); border-radius: 7px; padding: 9px 11px; margin: 7px 0; break-inside: avoid; }
+  .tag { display: inline-block; background: var(--ink); color: #fff; font-size: 8.5pt; font-weight: 700; width: 17px; height: 17px; line-height: 17px; text-align: center; border-radius: 4px; margin-right: 7px; }
+  pre { background: var(--code); color: #f9fafb; padding: 8px 10px; border-radius: 5px; font-size: 8.2pt; line-height: 1.45; overflow-x: auto; margin: 6px 0; white-space: pre-wrap; word-break: break-word; }
+  pre .c { color: #9ca3af; }
+  ol, ul { margin: 4px 0 5px; padding-left: 18px; }
+  li { margin: 2px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 8.5pt; }
+  th { background: var(--soft); color: var(--ink); text-align: left; font-size: 8.4pt; padding: 5px 8px; border: 1px solid var(--line); }
+  td { padding: 5px 8px; border: 1px solid var(--line); vertical-align: top; }
+  .qa { margin-top: 4px; column-count: 2; column-gap: 16px; }
+  .qa dt { font-weight: 700; color: var(--ink); margin-top: 5px; break-after: avoid; }
+  .qa dd { break-inside: avoid; }
+  .qa dd { margin: 2px 0 0; }
+  h2 { break-after: avoid; } table, dl { break-inside: auto; }
+  .foot { margin-top: 10px; font-size: 8.6pt; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="brand"><span class="mark"></span> AutoBricks AI</div>
+
+  <h1>Arlo Self-Hosted — How to Run It</h1>
+  <p class="lede">Run <strong>Arlo</strong> on your own computer. Everything runs in Docker — when it's up, open
+    <strong>http://127.0.0.1:9005</strong>. Pick one method below; you only need to do this once.</p>
+
+  <h2>What is Arlo?</h2>
+  <p><strong>Arlo</strong> is a customer-service and sales agent you host yourself. It answers from <em>your own</em>
+    documents, cites the passage each answer came from, and hands over to a person the moment it should. Web chat,
+    WhatsApp, Telegram, Messenger, Instagram, TikTok and email arrive in one inbox.</p>
+  <p><strong>AutoBricks AI</strong> (autobricksai.com) is the model provider — one key for Claude, GPT, Gemini and more.
+    Arlo speaks to it natively, so there is no second account to open.</p>
+
+  <h2>Before you start</h2>
+  <ol>
+    <li>Install <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a> and make sure it's running (whale icon).</li>
+    <li>Get your key at <a href="https://creators.autobricksai.com/account/api-keys/keys">creators.autobricksai.com/account/api-keys/keys</a>
+      → create → copy the <code>abai_sk_live_…</code> value.</li>
+    <li>Decide the administrator's email address — it becomes the only account that can reach <code>/admin</code>.</li>
+  </ol>
+  <div class="note">One-time ~330 MB image download, ~500 MB on disk. The first start applies eighty database
+    migrations before it answers, so give it a few minutes — once.</div>
+
+  <h2>Pick a method</h2>
+
+  <div class="card">
+    <h3><span class="tag">A</span>macOS / Linux</h3>
+<pre>git clone https://github.com/adit-firdaus/arlo-ai-selfhost.git arlo &amp;&amp; cd arlo
+./bootstrap.sh http://127.0.0.1:9005 you@company.com
+docker compose up -d --wait</pre>
+    <p>The second command generates every secret and writes <code>.env</code>, <code>db.env</code> and
+      <code>auth.env</code>. Run it once, never twice.</p>
+  </div>
+
+  <div class="card">
+    <h3><span class="tag">B</span>Windows 10 / 11</h3>
+    <p>The same three commands as <strong>A</strong> — but run them in <strong>Git Bash</strong> (comes with
+      <a href="https://git-scm.com/download/win">Git for Windows</a>) or a <strong>WSL</strong> terminal.
+      PowerShell cannot run <code>bootstrap.sh</code>.</p>
+<p>Docker Desktop must be using the <strong>WSL 2</strong> backend — its installer sets this up.</p>
+  </div>
+
+  <div class="card">
+    <h3><span class="tag">C</span>Let Claude do it (any OS)</h3>
+    <p>Open Claude Code and paste this one line. It installs Docker if missing, writes the stack, starts it, and asks
+      you only for the key, the email and a password you choose yourself:</p>
+<pre>https://raw.githubusercontent.com/adit-firdaus/arlo-ai-selfhost/main/SETUP.md</pre>
+    <p>It resumes if interrupted, and verifies every step before telling you it's done.</p>
+  </div>
+
+  <h2>After it's running</h2>
+  <ul>
+    <li>Create your account — this prints a code and the link to use it:
+      <pre>docker compose exec app node scripts/invite.mjs you@company.com</pre></li>
+    <li>Open <strong>http://127.0.0.1:9005/login?code=ARLO-XXXX-XXXX</strong> and choose your own password.</li>
+    <li>Paste your AutoBricks key in <strong>Settings → model provider</strong>, and the same key into
+      <code>EMBEDDINGS_KEY=</code> in <code>.env</code>, then <code>docker compose up -d --wait app</code>.</li>
+    <li>Upload a few documents under <strong>Knowledge base</strong> — until you do, the bot honestly declines to
+      answer rather than inventing anything.</li>
+  </ul>
+  <div class="note">Keep a copy of <code>.env</code>, <code>db.env</code> and <code>auth.env</code> somewhere safe.
+    <code>SECRET_KEY</code> inside <code>.env</code> is what every stored key and token is encrypted with — without
+    that file, a database backup cannot be read.</div>
+
+  <h2>Managing it</h2>
+  <p>All from the folder you cloned into:</p>
+<pre>docker compose logs -f app        <span class="c"># view logs</span>
+docker compose restart app        <span class="c"># restart (do this after connecting a Telegram bot)</span>
+docker compose pull &amp;&amp; docker compose up -d --wait   <span class="c"># update</span>
+docker compose down               <span class="c"># stop (keeps data)</span>
+docker compose exec -T db pg_dump -U postgres -Fc postgres &gt; arlo.dump   <span class="c"># back up</span></pre>
+  <p><strong>Never</strong> run <code>docker compose down -v</code> unless you mean to destroy the database — it is
+    the only command here that loses anything.</p>
+
+  <h2>Troubleshooting</h2>
+  <table>
+    <tr><th style="width:44%">Problem</th><th>Fix</th></tr>
+    <tr><td>Docker daemon isn't running</td><td>Start Docker Desktop, wait for the whale icon, retry.</td></tr>
+    <tr><td><code>bad interpreter</code> on Windows</td><td>You're in PowerShell. Use Git Bash or WSL.</td></tr>
+    <tr><td><code>permission denied … docker.sock</code> (Linux)</td><td><code>sudo usermod -aG docker $USER</code>, then log out and back in.</td></tr>
+    <tr><td>First start seems stuck</td><td>It isn't — eighty migrations run before it serves. Watch <code>docker compose logs -f app</code>.</td></tr>
+    <tr><td><code>address already in use</code> on 9005</td><td>Something else holds the port. Stop it, or change <code>ports:</code> in <code>compose.yml</code> and <code>PUBLIC_URL</code>.</td></tr>
+    <tr><td>Bot replies "I couldn't find information…"</td><td>Working as designed — the knowledge base is empty. Upload documents.</td></tr>
+    <tr><td>Telegram connects but nothing arrives</td><td><code>docker compose restart app</code>. The polling loop only starts in the main process.</td></tr>
+    <tr><td><code>fetch failed</code> on a connector, now and then</td><td>Add <code>NODE_OPTIONS=--network-family-autoselection-attempt-timeout=3000</code> to <code>.env</code>, restart.</td></tr>
+  </table>
+
+  <h2>Q&amp;A</h2>
+  <dl class="qa">
+    <dt>Does it cost anything?</dt>
+    <dd>Arlo is free. Only model usage counts, billed to your AutoBricks balance.</dd>
+
+    <dt>Is my data private?</dt>
+    <dd>Yes — everything stays on your machine. Only a question and the passages needed to answer it reach a model.</dd>
+
+    <dt>Do I need internet?</dt>
+    <dd>To reach the models, yes. Without a key Arlo runs and declines to answer.</dd>
+
+    <dt>Which model?</dt>
+    <dd><code>autobricksai/gpt-4.1-mini</code> by default; <code>claude-sonnet-4.6</code> for harder work.</dd>
+
+    <dt>Space needed?</dt>
+    <dd>~500 MB one-time, plus your documents.</dd>
+
+    <dt>Exposed to the internet?</dt>
+    <dd>No — bound to <code>127.0.0.1</code>. A domain needs your own HTTPS proxy in front.</dd>
+
+    <dt>Can I put the chat on my website?</dt>
+    <dd>Yes — <strong>Connectors → Web chat</strong> gives you one <code>&lt;script&gt;</code> tag. Needs a public address.</dd>
+
+    <dt>How do I update it?</dt>
+    <dd><code>docker compose pull &amp;&amp; docker compose up -d --wait</code>. Migrations apply themselves.</dd>
+
+    <dt>How do I remove it completely?</dt>
+    <dd><code>docker compose down -v</code> — deletes the database too. Then delete the folder.</dd>
+
+    <dt>Forgot my password?</dt>
+    <dd>Issue a fresh code: <code>docker compose exec app node scripts/invite.mjs you@…</code></dd>
+
+    <dt>Can I connect WhatsApp or Telegram?</dt>
+    <dd>Yes — Telegram, WhatsApp (QR) and email work on a laptop. Messenger, Instagram, TikTok and WhatsApp Cloud need
+      a public HTTPS address. See INSTRUCTIONS.md, section 5.</dd>
+  </dl>
+
+  <p class="foot">Full setup, all channels and backups →
+    <a href="https://github.com/adit-firdaus/arlo-ai-selfhost/blob/main/INSTRUCTIONS.md">github.com/adit-firdaus/arlo-ai-selfhost</a>
+    &nbsp;·&nbsp; Need an API key? →
+    <a href="https://creators.autobricksai.com/account/api-keys/keys">creators.autobricksai.com/account/api-keys/keys</a></p>
+
+</div>
+</body>
+</html>
