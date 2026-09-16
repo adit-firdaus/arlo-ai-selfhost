@@ -38,14 +38,21 @@ This runbook covers exactly five outcomes: Docker working, the four containers h
 serving its sign-in page on loopback, the user's own account created and signed in, and the
 user's AutoBricks key saved inside Arlo so the bot can answer.
 
+If the user asks you to build them a website as well — a landing page, a shopfront, anything —
+the chat widget goes into it as part of building it, not as a note afterwards. You can mint a
+widget key yourself without them touching the UI; `INSTRUCTIONS.md`, section 5, "If you are
+building the site as well" has the command and the four failure modes worth checking before
+calling it done.
+
 Everything past that is the course. Connecting WhatsApp, Telegram, Messenger, Instagram,
 TikTok or email; uploading the first documents; building the first bot; putting Arlo on a
 public domain with TLS — all deliberately out of scope here. Do not ask for a bot token, an
 OAuth callback, a domain name or any other integration secret.
 
-The only secret this runbook asks for is the AutoBricks API key, and you never write it to a
-file: the user pastes it into Arlo, which encrypts it into its own database under a key it
-generated for itself.
+The only secret this runbook asks for is the AutoBricks API key. You install it for them in
+section 5 — into `.env` for embeddings, and through `setProvider()` for chat, which seals it
+into the database under a key the instance generated for itself. It never goes in the progress
+file, a log, or a status message.
 
 ## How to work through this
 

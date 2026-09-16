@@ -243,8 +243,58 @@ is a channel that reads "not set up" rather than one that half-works.
 
 ### Web widget — nothing to configure
 
-Already on. **Bots → your bot → the widget snippet**, paste into the page. Served from your own
-instance, so it inherits the address in `PUBLIC_URL`.
+Already on. **Bots → your bot → the widget snippet**, paste it into the page before `</body>`:
+
+```html
+<script src="https://arlo.example.com/api/widget.js?key=YOUR_WIDGET_KEY" defer></script>
+```
+
+One tag. No build step, no npm package, no CORS to configure. The script reads its own `src` for
+the key and the origin, mounts into a shadow root so the page's CSS and the widget's never meet,
+and polls `/api/chat` every two seconds while open.
+
+**A workspace can have several**, one per site — named, revocable on its own, and recognisable
+when a question arrives. Add them under **Connectors → Web chat**.
+
+#### If you are building the site as well
+
+Someone who asks for a website *and* has Arlo running wants the two joined up, not a snippet
+pasted into a handover note. Do it for them, in this order, and do not stop to ask for a key —
+you can mint one:
+
+**1. Create the widget and take its key.** Named after the site, so the workspace can tell its
+sites apart later:
+
+```sh
+docker compose exec -T app node --input-type=module -e 'const {add}=await import("/opt/arlo/src/server/channels/web.ts");const {asSystem,one,close}=await import("/opt/arlo/src/server/db.ts");const ws=await asSystem(()=>one("SELECT id FROM workspaces ORDER BY id LIMIT 1"));const w=await asSystem(()=>add(ws.id,"THE SITE NAME"));console.log(JSON.stringify({widget:w.id,key:w.key}));await close();'
+```
+
+It prints the id and the key. That is the same row the Connectors page would have created —
+`add()` is the function behind that button — so nothing here is a special case to be undone
+later.
+
+**2. Put the tag in the page**, before `</body>`, with that key and this instance's
+`PUBLIC_URL` as the origin. Not `127.0.0.1` unless the site is only ever opened on this machine:
+the script calls back to whatever origin it was loaded from, so a laptop address in a page
+served anywhere else is a widget that loads and never answers.
+
+**3. Prove it answers before saying it works.** Load the page, open the chat, ask something the
+site itself claims — a price, an opening time, a date from its own table — and read the reply.
+The failure modes are quiet and specific:
+
+| What comes back | What it means |
+|---|---|
+| `Unknown widget key` in a grey system line | the key in the tag does not match the row you just made |
+| The launcher never appears | the script did not load — check the origin in `src` and the browser console |
+| *"I couldn't find information about…"* | the widget works and the **knowledge base is empty of that**. Section 4 is the fix, not the tag |
+| *"A person is picking this up"* | also working — the bot escalated rather than inventing. Correct, and worth explaining to whoever is watching |
+
+That third row is the one to expect on a site you have just written: the bot answers from the
+workspace's documents, and a brand-new site is not in them. Upload the page's own content — the
+courses, the prices, the FAQ — and ask again before concluding anything is broken.
+
+**4. Hand over the key with the site.** It sits in the page source, so it is public by design,
+but it is also the thing to delete if the site is ever taken down.
 
 ### Telegram — works anywhere
 
