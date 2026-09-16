@@ -299,7 +299,7 @@ services:
     restart: 'no'
 
   db:
-    image: <PGVECTOR_DIGEST>
+    image: pgvector/pgvector@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
     restart: unless-stopped
     env_file: [db.env]
     depends_on:
@@ -314,7 +314,7 @@ services:
       retries: 12
 
   auth:
-    image: <GOTRUE_DIGEST>
+    image: supabase/auth@sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b
     restart: unless-stopped
     env_file: [auth.env]
     depends_on:
@@ -326,7 +326,7 @@ services:
       retries: 12
 
   authgw:
-    image: <NGINX_DIGEST>
+    image: nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     restart: unless-stopped
     depends_on:
       auth: { condition: service_healthy }
@@ -465,12 +465,22 @@ That is the end of this runbook.
 
 ## CDN release
 
-Before publishing this file, replace each `<…_DIGEST>` placeholder with the digest of a real
-published image — `docker buildx imagetools inspect <ref>` prints it — and make the
-`ghcr.io/autobricks-ai/arlo-ai` package public, or a student's `docker compose pull` fails with
-an authentication error that looks nothing like the permission problem it is. The image is
-built and pushed by `.github/workflows/selfhost.yml`; the digest to pin is the one that run
-reports.
+Three of the four images are pinned above, by the index digest rather than a per-architecture
+one, so the same line works on a student's amd64 laptop and on an arm64 machine.
+
+`<ARLO_IMAGE_DIGEST>` is the one still to fill, and it cannot be filled until the application
+image is published. Two things, in this order:
+
+1. Publish it. The build lives in the application repository, on the `af-public-compose`
+   branch; the digest to pin is the one its run reports, or
+   `docker buildx imagetools inspect ghcr.io/autobricks-ai/arlo-ai:main` afterwards.
+2. **Make the `ghcr.io/autobricks-ai/arlo-ai` package public.** It belongs to a private
+   repository, so it is private by default, and a student's `docker compose pull` fails with an
+   authentication error that looks nothing like the permission problem it is. There is no API
+   for this — it is Package settings → Change visibility, by hand.
+
+Until both are done this runbook cannot complete on a machine that has never built the image,
+and saying so here is cheaper than a student finding out at step 5.
 
 The repository copy of this stack is
 [adit-firdaus/arlo-ai-selfhost](https://github.com/adit-firdaus/arlo-ai-selfhost) —
