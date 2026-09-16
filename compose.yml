@@ -77,7 +77,7 @@ services:
   # root, because a fresh named volume belongs to root and the app image runs as `node`.
   # It writes three files and exits; nothing else in the stack runs as root.
   seed:
-    image: ${ARLO_IMAGE:-ghcr.io/autobricks-ai/arlo-ai:main}
+    image: ${ARLO_IMAGE:-ghcr.io/adit-firdaus/arlo-ai-selfhost:latest}
     user: root
     command: sh -c 'cp -a /opt/arlo/initdb/. /seed/ && ls -l /seed'
     volumes:
@@ -152,10 +152,11 @@ services:
 
   # ---------------------------------------------------------------- the app
   app:
-    # Pulled, never built: there is no application source in this repository, by design. Set
-    # ARLO_IMAGE to pin a digest — `ghcr.io/autobricks-ai/arlo-ai@sha256:…` — which is what a
-    # real installation should do rather than following a moving tag.
-    image: ${ARLO_IMAGE:-ghcr.io/autobricks-ai/arlo-ai:main}
+    # Pulled, never built: there is no application source in this repository, by design. The
+    # tag is the convenience; ARLO_IMAGE is how an installation pins the bytes instead —
+    # `ARLO_IMAGE=ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:… docker compose up -d`. SETUP.md
+    # pins a digest for exactly that reason.
+    image: ${ARLO_IMAGE:-ghcr.io/adit-firdaus/arlo-ai-selfhost:latest}
     restart: unless-stopped
     depends_on:
       db:

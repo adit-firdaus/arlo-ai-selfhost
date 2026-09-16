@@ -15,8 +15,13 @@ source. `ARLO_IMAGE` in your shell overrides which image that is, and a real ins
 should pin a digest rather than follow the `main` tag.
 
 The image is `ghcr.io/adit-firdaus/arlo-ai-selfhost`, built from the application source and
-published beside this repository. `ARLO_IMAGE=arlo:local docker compose up -d --wait` runs a
-build of your own instead, if you have one.
+published beside this repository, for `linux/amd64` and `linux/arm64` under the one tag. Pin it
+in an installation you care about:
+
+```sh
+ARLO_IMAGE=ghcr.io/adit-firdaus/arlo-ai-selfhost@sha256:6ecd3666afb9cdb1965ad85abbe3e9a387f4c2cfb1a6ef0853824296239e611f \
+  docker compose up -d --wait
+```
 
 Then point a TLS proxy at `127.0.0.1:9005` — [below](#the-proxy-in-front) — and open the
 address you gave. Everything else is configuration you can do later, from inside the app.
