@@ -160,36 +160,42 @@ from the internet fails every push channel below, several hours later, silently.
 
 ## 3. The model key
 
-Arlo runs with no key at all: retrieval falls back to Postgres full-text search and the bot
-declines rather than inventing an answer. To have it answer, sign in and open **Settings → the
-model provider section**, then paste one of:
+One key does both halves, and you get it here:
 
-- an **AutoBricks** key, which is what the course issues. Arlo talks to
-  `api.autobricksai.com` natively and bills your own account.
-- an **OpenRouter** key, in `.env` as `OPENROUTER_API_KEY`, followed by a restart.
+> **https://creators.autobricksai.com/account/api-keys/keys** — sign in, create a key, copy it.
 
-The difference that matters: a key pasted in Settings is encrypted into the database under
-`SECRET_KEY` and belongs to that workspace. A key in `.env` is the instance's, shared by every
-workspace on it. On a self-hosted box with one workspace they amount to the same thing; with
-several, the Settings route is the one that keeps the bills apart.
+`bootstrap.sh` has already pointed the instance at AutoBricks — `EMBEDDINGS_URL` and
+`EMBEDDINGS_MODEL` are filled in, and chat needs no endpoint at all because Arlo speaks
+`api.autobricksai.com` natively. Only the key itself is missing.
 
-**Embeddings are worth turning on and are off by default.** Without them, retrieval is
-keyword-only and a question phrased unlike the document it should match will miss. OpenRouter
-serves them on the same key as chat:
+**Chat** is per workspace, so it goes in the app: **Settings → the model provider section**,
+paste, save. It is encrypted into the database under `SECRET_KEY`, which is why two workspaces
+on one instance can pay their own way.
 
-Set this line in `.env` and restart:
+**Embeddings** are instance-wide. Put the same key in `.env` and restart:
 
 ```
-EMBEDDINGS_URL=https://openrouter.ai/api/v1/embeddings
+EMBEDDINGS_KEY=abai_sk_live_…
 ```
 
 ```sh
 docker compose up -d --wait app
 ```
 
-Anything speaking OpenAI's `/v1/embeddings` works, including a local server — `EMBEDDINGS_KEY`
-is for when that endpoint has a key of its own. Chunks already stored with no embedding are
-backfilled in the background once one is configured; nothing needs re-uploading.
+Both are worth doing. Without the chat key the bot declines to answer; without the embeddings
+key retrieval is keyword-only, so a question phrased unlike the document that answers it will
+miss.
+
+**Why that model and not the better one.** `EMBEDDINGS_MODEL` is
+`autobricksai/text-embedding-3-small`, which returns 1536-wide vectors — exactly what
+`migrations/003_kb.sql` declares. `text-embedding-3-large` returns 3072 and Arlo refuses it
+rather than letting pgvector fail mid-transaction. Changing the width later is not a config
+edit: it means a schema change and re-embedding everything you have stored.
+
+**If you would rather use OpenRouter**, it works the same way — put your key in
+`OPENROUTER_API_KEY`, set `EMBEDDINGS_URL=https://openrouter.ai/api/v1/embeddings` and
+`EMBEDDINGS_MODEL=openai/text-embedding-3-small`, and leave the AutoBricks provider unset. The
+two are independent: chat on one, embeddings on the other, if that is what your billing wants.
 
 ## 4. The knowledge base
 

@@ -168,8 +168,14 @@ While that runs, carry on with section 3.
 
 ## 3. The AutoBricks API key while Docker runs
 
-Ask the user for their AutoBricks API key — the same key the course issued them — and validate
-it in the coordinator shell:
+Ask the user for their AutoBricks API key, and tell them where it is rather than assuming they
+know:
+
+> **https://creators.autobricksai.com/account/api-keys/keys** — sign in, create a key if there
+> is none, copy it, and paste it here.
+
+Then validate it in the coordinator shell before going any further, so a wrong key is caught now
+rather than in section 6:
 
 ```powershell
 $Key = Read-Host 'Paste your AutoBricks API key' -AsSecureString
@@ -179,9 +185,18 @@ $env:ABAI_KEY = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
   -Headers @{ Authorization = "Bearer $env:ABAI_KEY" }).data.Count
 ```
 
-A count above zero is a working key. A `401` or `403` is a key problem only the account owner
-can fix: ask once, precisely, and wait. Keep the key in `$env:ABAI_KEY` in this shell only —
-it goes into Arlo by the user's own hands in section 5, and into no file you write.
+A count above zero is a working key — it should be around thirty-seven models. A `401` or `403`
+is a key problem only the account owner can fix: ask once, precisely, and wait.
+
+**This one key does both jobs**, and section 5 installs it in both places:
+
+- **chat**, per workspace, encrypted into the database under `SECRET_KEY`. Arlo speaks
+  `api.autobricksai.com` natively, so no endpoint needs configuring.
+- **embeddings**, instance-wide, as `EMBEDDINGS_KEY` in `.env`. The address and model are
+  already written by section 4 and need no decision from anybody.
+
+Keep the key in `$env:ABAI_KEY` in this shell only. It does not go in the progress file, in a
+log, or in a status message.
 
 ## 4. Write the stack
 
@@ -281,8 +296,11 @@ SUPABASE_URL=http://authgw:8000
 SUPABASE_SERVICE_ROLE_KEY=<ServiceKey>
 SUPABASE_JWT_SECRET=<JwtSecret>
 OPENROUTER_API_KEY=
-EMBEDDINGS_URL=
+AUTOBRICKS_MODEL=autobricksai/gpt-4.1-mini
+EMBEDDINGS_URL=https://api.autobricksai.com/v1/embeddings
+EMBEDDINGS_MODEL=autobricksai/text-embedding-3-small
 EMBEDDINGS_KEY=
+EMBEDDINGS_DIMS=
 SECRET_KEY=<SecretKey>
 ADMIN_EMAILS=<the user's email address>
 PUBLIC_URL=http://127.0.0.1:<PORT>
@@ -416,14 +434,33 @@ the AutoBricks key — restrict the file to the current user, then open Chrome a
 what turns the sign-in page into a registration one — give the user their code, and ask them to
 choose their own password. Wait for them. You must never type a password on a person's behalf.
 
+### Install the key, now that there is a workspace to install it into
+
+A workspace exists only once somebody has registered, which is why this happens here and not in
+section 4. Both halves, in order:
+
+```powershell
+# 1. Embeddings, instance-wide. Write the key into .env and restart the app.
+(Get-Content .env) -replace '^EMBEDDINGS_KEY=.*', "EMBEDDINGS_KEY=$env:ABAI_KEY" |
+  Set-Content -Encoding utf8 .env
+docker compose up -d --wait app
+
+# 2. Chat, per workspace. setProvider seals the key into the database under SECRET_KEY —
+#    the same path the Settings page uses, so nothing here is a special case.
+docker compose exec -T -e ABAI_KEY=$env:ABAI_KEY app node --input-type=module -e 'const {setProvider}=await import("/opt/arlo/src/server/auth.ts");const {asSystem,one,close}=await import("/opt/arlo/src/server/db.ts");const ws=await asSystem(()=>one("SELECT id FROM workspaces ORDER BY id LIMIT 1"));await asSystem(()=>setProvider(ws.id,"autobricks",process.env.ABAI_KEY));console.log("key saved for workspace",ws.id);await close();'
+```
+
+The second command prints `key saved for workspace <id>`. Anything else — an import error, no
+workspace row — means the account in the step above did not actually land; go back rather than
+carrying on.
+
 Confirm the account landed, without reading anything private:
 
 ```powershell
 docker compose exec -T db psql -U postgres -d postgres -At -c "select count(*) from auth.users"
 ```
 
-A count of `1` or more is the account. Then tell the user where their AutoBricks key goes —
-Settings, the model provider section, paste, save — and confirm that too:
+A count of `1` or more is the account. The key is already installed by the step above, so confirm rather than ask:
 
 ```powershell
 docker compose exec -T db psql -U postgres -d postgres -At `
@@ -451,7 +488,10 @@ Required successful outcomes:
   sign-in
 - `[x]` The identity provider answers: `docker compose exec -T authgw wget -qO- http://auth:9999/health`
 - `[x]` `select count(*) from auth.users` is at least `1` — the user's own account exists
-- `[x]` `select llm_provider from arlo.workspaces limit 1` is `autobricks`
+- `[x]` `select llm_provider from arlo.workspaces limit 1` is `autobricks`, and
+  `select autobricks_key_enc is not null from arlo.workspaces limit 1` is `t`
+- `[x]` `EMBEDDINGS_KEY` in `.env` is not empty, and the app container has been restarted since
+  it was written
 - `[x]` `compose.yml`, `.env`, `db.env`, `auth.env` and `creds.txt` exist in `$AppDir` and are
   restricted to the current Windows user
 

@@ -178,15 +178,32 @@ SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY
 SUPABASE_JWT_SECRET=$JWT_SECRET
 
 # ---------------------------------------------------------------- models
-# Optional, and the product is honest without them: with no key, retrieval falls back to
-# Postgres full-text search and the bot says it cannot answer rather than inventing one.
-# OpenRouter serves embeddings on the same key as chat, which is why the address below is
-# filled in and the second key is not.
+# AutoBricks AI, which is where the key comes from:
+#   https://creators.autobricksai.com/account/api-keys/keys
+#
+# Two halves, configured in two places, because they are billed differently:
+#
+#   chat        per workspace. Pasted in Settings, or written by the installer, and
+#               encrypted into the database under SECRET_KEY. Not an environment variable,
+#               so two workspaces on one instance pay their own way.
+#   embeddings  instance-wide, below. One key for the box.
+#
+# EMBEDDINGS_KEY is blank until somebody pastes one. Blank means no embeddings, which is a
+# supported state: retrieval falls back to Postgres full-text search and the bot declines
+# rather than inventing. Fill it and restart to turn retrieval on properly.
+#
+# The model is the small one on purpose. It returns 1536-wide vectors, which is exactly
+# what migrations/003_kb.sql and 027_training.sql declare; text-embedding-3-large returns
+# 3072 and embed.ts refuses it rather than letting pgvector fail inside a transaction.
+# EMBEDDINGS_DIMS stays blank for the same reason it always did: set, it sends a
+# 'dimensions' field that a provider either ignores or complains about, and 1536 is this
+# model's native width anyway.
 OPENROUTER_API_KEY=
-OPENROUTER_MODEL=openai/gpt-4.1-mini
-EMBEDDINGS_URL=https://openrouter.ai/api/v1/embeddings
+OPENROUTER_MODEL=
+AUTOBRICKS_MODEL=autobricksai/gpt-4.1-mini
+EMBEDDINGS_URL=https://api.autobricksai.com/v1/embeddings
 EMBEDDINGS_KEY=
-EMBEDDINGS_MODEL=openai/text-embedding-3-small
+EMBEDDINGS_MODEL=autobricksai/text-embedding-3-small
 EMBEDDINGS_DIMS=
 BRAVE_SEARCH_KEY=
 
