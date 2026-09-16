@@ -401,8 +401,9 @@ docker compose exec app node scripts/invite.mjs <the user's email address>
 
 It prints a code. Put the code and the local URL in `creds.txt` — never a password, and never
 the AutoBricks key — restrict the file to the current user, then open Chrome at
-`http://127.0.0.1:<PORT>/register`, give the user their code, and ask them to choose their own
-password. Wait for them. You must never type a password on a person's behalf.
+`http://127.0.0.1:<PORT>/login?code=<the code>` — there is no `/register` route; the code is
+what turns the sign-in page into a registration one — give the user their code, and ask them to
+choose their own password. Wait for them. You must never type a password on a person's behalf.
 
 Confirm the account landed, without reading anything private:
 

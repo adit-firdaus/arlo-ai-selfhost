@@ -73,8 +73,9 @@ way out of that loop is a shell:
 docker compose exec app node scripts/invite.mjs you@example.com
 ```
 
-It prints a code that admits that address once. Register with it at `/register`, and every
-later invitation comes from the admin page.
+It prints a code that admits that address once, along with the URL to use it:
+`<your-url>/login?code=ARLO-XXXX-XXXX`. There is no separate `/register` page — the code is what
+turns sign-in into registration. Every later invitation comes from the admin page.
 
 ## Turning the answering on
 
