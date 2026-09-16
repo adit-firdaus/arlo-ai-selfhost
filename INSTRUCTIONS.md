@@ -53,15 +53,31 @@ and Git Bash comes with Git for Windows, so there is nothing else to install.
 sudo usermod -aG docker $USER    # then log out and back in
 ```
 
-### Ask for the email first
+### Ask for three things, in this order
 
-The second argument to `bootstrap.sh` is not a formality and it cannot be a placeholder. It
-becomes `ADMIN_EMAILS` — the only account that can reach `/admin` — and it has to match the
-address invited in step 4, or the account that gets created cannot administer anything.
+Collect all three before running anything. The install then goes from nothing to a working
+instance without stopping to wait for a person — which is the whole point of asking now.
 
-**Ask the person who will own this instance for their real email address before you start.** If
-you are setting Arlo up on somebody else's behalf, it is *their* address, not yours. Changing it
-afterwards means editing `.env` and restarting; getting it right now costs one question.
+**1. The AutoBricks API key.** First, because it is the only one that sends somebody to a
+browser:
+
+> **https://creators.autobricksai.com/account/api-keys/keys** — sign in, create a key if there
+> is none, copy it.
+
+It is not needed until section 3, well after the install. Ask for it anyway: a key fetched now
+costs a minute of waiting at the start, and a key fetched later costs a finished install sitting
+idle while somebody goes looking for a login. Without it Arlo runs but declines to answer, which
+is a working instance that does nothing anyone wanted.
+
+**2. The administrator's email address.** Not a formality and not a placeholder: it becomes
+`ADMIN_EMAILS`, the only account that can reach `/admin`, and the same address has to be the one
+invited in step 4 below. If you are setting Arlo up on somebody else's behalf, it is *their*
+address, not yours — and if you think you already know it, confirm it rather than using it.
+
+**3. The address this instance answers on.** `http://127.0.0.1:9005` for a laptop, or a real
+`https://` hostname if there is one. It becomes `PUBLIC_URL`, and OAuth redirects, webhook
+addresses and widget links are all built from it. Deciding now is free; changing it later means
+editing three lines across two files and restarting.
 
 ### The four commands
 
@@ -160,11 +176,11 @@ from the internet fails every push channel below, several hours later, silently.
 
 ## 3. The model key
 
-One key does both halves, and you get it here:
+This is the key collected in section 1 — if it was not, fetch it now from
+**https://creators.autobricksai.com/account/api-keys/keys** and expect to wait while somebody
+signs in.
 
-> **https://creators.autobricksai.com/account/api-keys/keys** — sign in, create a key, copy it.
-
-`bootstrap.sh` has already pointed the instance at AutoBricks — `EMBEDDINGS_URL` and
+One key does both halves. `bootstrap.sh` has already pointed the instance at AutoBricks — `EMBEDDINGS_URL` and
 `EMBEDDINGS_MODEL` are filled in, and chat needs no endpoint at all because Arlo speaks
 `api.autobricksai.com` natively. Only the key itself is missing.
 

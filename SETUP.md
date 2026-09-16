@@ -70,9 +70,14 @@ than winding up early.
   `SETUP_URL`, a UAC approval, or a return after a restart as a cue to re-read live state and
   pick up at `nextAction`.
 
-**When to involve the user.** Most of this runs unattended. Five things genuinely need them,
-each asked one at a time:
+**When to involve the user.** Most of this runs unattended. Six things genuinely need them,
+each asked one at a time, and the first two are worth asking before anything is installed:
 
+- **the AutoBricks API key** — ask for this one *first*, before the email, even though the
+  install needs it last. It is the only thing on this list that sends a person to a browser to
+  go and find something, and an install that stops at the end to wait for that is an install
+  that looks finished and is not. Tell them where it is:
+  **https://creators.autobricksai.com/account/api-keys/keys**,
 - **their email address** — ask for it early, before section 4 needs it, and never assume one.
   It is not a formality: it becomes `ADMIN_EMAILS`, which is the only account that can reach
   `/admin`, and the same address has to be the one invited in section 5. An address you guessed
@@ -84,7 +89,7 @@ each asked one at a time:
   or type a person's password for them,
 - an AutoBricks credit or key problem only the account owner can fix.
 
-Beyond those five, avoid asking the user to run diagnostics, inspect Docker or edit files —
+Beyond those six, avoid asking the user to run diagnostics, inspect Docker or edit files —
 that's the work they asked you to take on.
 
 **Shells and parallelism.** Keep up to two persistent shells: a coordinator shell that owns
@@ -168,8 +173,11 @@ While that runs, carry on with section 3.
 
 ## 3. The AutoBricks API key while Docker runs
 
-Ask the user for their AutoBricks API key, and tell them where it is rather than assuming they
-know:
+Ask for this before the email in section 4, and ask while Docker is still installing — the point
+of the ordering is that a person goes to fetch a key during a wait that was happening anyway,
+rather than at the end, when everything else is done and idle.
+
+Tell them where it is rather than assuming they know:
 
 > **https://creators.autobricksai.com/account/api-keys/keys** — sign in, create a key if there
 > is none, copy it, and paste it here.
