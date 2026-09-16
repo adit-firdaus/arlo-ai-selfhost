@@ -1,0 +1,199 @@
+# Arlo, self-hosted. Everything it needs, on one machine, sharing nothing with anybody.
+#
+#   git clone https://github.com/adit-firdaus/arlo-ai-selfhost.git arlo && cd arlo
+#   ./bootstrap.sh https://arlo.example.com you@example.com   # once: writes the env files
+#   docker compose up -d --wait
+#
+# Run compose from *this directory*: it reads the env files below relative to the working
+# directory, not to this file's.
+#
+# What this is, and what it is not. Hexcore's own instance runs the systemd unit in
+# deploy/arlo.service against hosted Supabase, behind a Traefik that already exists. None of
+# that is reasonable to ask of somebody self-hosting, so this stack brings its own database,
+# its own identity provider and its own build — four containers and no accounts to open.
+#
+# What it deliberately does not bring is TLS. The app publishes on loopback and something on
+# the host terminates HTTPS in front of it. Binding 80 and 443 from inside this file is the
+# one decision that cannot be taken back by editing a variable, and on a box already serving
+# something it is an outage rather than a deploy. README.md has a Caddyfile; it is two lines.
+#
+# ------------------------------------------------------------------ no secrets in ${...}
+#
+# Every value that matters arrives through `env_file`, and none through interpolation. That
+# is not style. Compose resolves `${FOO}` against the *shell it was run from* first and the
+# .env file second, so on a developer's machine — which exports Arlo's own variables, that
+# being what makes `npm run dev` work — `${SUPABASE_URL}` is their Supabase project and
+# `${SUPABASE_JWT_SECRET}` is empty. The stack would come up pointed at somebody else's
+# identity provider and say nothing about it. env_file has no such precedence: what is in
+# the file is what the container gets.
+#
+# Three files rather than one, so a container is handed what it needs and not what it does
+# not: the model keys belong to the app and have no business in Postgres's environment.
+
+name: arlo
+
+services:
+  # ---------------------------------------------------------------- Postgres
+  #
+  # pgvector's image rather than plain postgres: migrations/003_kb.sql and 027_training.sql
+  # declare vector(1536) columns, and setup/00-roles.sql creates that extension and pg_trgm.
+  # A hosted Supabase project ships both; here they have to be in the image.
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    # POSTGRES_PASSWORD and the three role passwords 30-passwords.sh sets. Nothing else.
+    env_file:
+      - db.env
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    # initdb holds the three first-boot scripts, put there by `seed` below. 20-roles.sql is
+    # setup/00-roles.sql itself — the file the test suite and Hexcore's own database run, not
+    # a copy of it — so the two-role security model cannot drift between deployments.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - initdb:/docker-entrypoint-initdb.d:ro
+    # Loopback, and not 5432: that is the port somebody eventually points something else at.
+    # `pg_dump -h 127.0.0.1 -p 54341` from the host is how backups leave this stack.
+    ports:
+      - '127.0.0.1:54341:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # ---------------------------------------------------------------- the first-boot scripts
+  #
+  # Runs once, exits, and Postgres waits for it. All it does is empty /opt/arlo/initdb out of
+  # the app image into a volume that `db` mounts as its docker-entrypoint-initdb.d.
+  #
+  # Why not bind-mount them from the checkout, which is what you would expect: because there
+  # may be no checkout. Installing from a published image — which is what a course student
+  # does — there is this compose file and nothing else on the machine. Carrying the scripts
+  # in the image keeps one copy of setup/00-roles.sql in the world instead of one per
+  # installation method.
+  #
+  # root, because a fresh named volume belongs to root and the app image runs as `node`.
+  # It writes three files and exits; nothing else in the stack runs as root.
+  seed:
+    image: ${ARLO_IMAGE:-ghcr.io/autobricks-ai/arlo-ai:main}
+    user: root
+    command: sh -c 'cp -a /opt/arlo/initdb/. /seed/ && ls -l /seed'
+    volumes:
+      - initdb:/seed
+    restart: 'no'
+
+  # ---------------------------------------------------------------- identity
+  #
+  # GoTrue is what Supabase Auth is, and running it here is what makes this instance yours:
+  # accounts, passwords and sessions never leave the machine, and no project has to be
+  # created anywhere. src/server/supabase.ts talks to it exactly as it talks to Supabase.
+  #
+  # Three values in auth.env have to agree with the app's .env exactly — the JWT secret, the
+  # issuer (`${SUPABASE_URL}/auth/v1`) and the `authenticated` audience. verifyToken()
+  # returns null for every kind of bad, so a mismatch reads as "nobody is signed in" with
+  # nothing in any log. bootstrap.sh writes both files from the same variables for that
+  # reason; edit one by hand and you must edit the other.
+  auth:
+    image: supabase/auth:v2.197.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - auth.env
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:9999/health']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # ---------------------------------------------------------------- the /auth/v1 prefix
+  #
+  # supabase-js sends every auth call to `${SUPABASE_URL}/auth/v1/...`; GoTrue serves those
+  # routes at its own root. Something has to strip the prefix. Supabase's own self-hosting
+  # stack uses Kong for it; eight lines of nginx is the same job without the 300MB.
+  authgw:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      auth:
+        condition: service_healthy
+    # Written inline rather than mounted, for the same reason the init scripts travel in the
+    # image: an installation may consist of this one file and nothing else. It is eight lines
+    # of nginx; a second file on disk to hold them would be a second thing to copy and keep
+    # in step.
+    command:
+      - sh
+      - -c
+      - |
+        cat > /etc/nginx/conf.d/default.conf <<'CONF'
+        server {
+          listen 8000;
+          # The trailing slash on *both* sides is what strips the /auth/v1 prefix
+          # supabase-js sends and GoTrue does not serve. Drop either one and GoTrue
+          # answers 404 to everything, which reads downstream as "wrong password".
+          location /auth/v1/ {
+            proxy_pass http://auth:9999/;
+            proxy_set_header Host $$host;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $$scheme;
+          }
+          location = /health { proxy_pass http://auth:9999/health; }
+          location / { return 404; }
+        }
+        CONF
+        exec nginx -g 'daemon off;'
+    # Not published. Every auth call in this app goes out from the server, never from the
+    # browser, so nothing outside this network needs to reach it.
+    expose:
+      - '8000'
+
+  # ---------------------------------------------------------------- the app
+  app:
+    # Pulled, never built: there is no application source in this repository, by design. Set
+    # ARLO_IMAGE to pin a digest — `ghcr.io/autobricks-ai/arlo-ai@sha256:…` — which is what a
+    # real installation should do rather than following a moving tag.
+    image: ${ARLO_IMAGE:-ghcr.io/autobricks-ai/arlo-ai:main}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      authgw:
+        condition: service_started
+    env_file:
+      - .env
+    volumes:
+      # Uploaded documents before ingest, the WhatsApp session, and the OCR language cache —
+      # the three things that must survive `docker compose down`. WA_AUTH_DIR and
+      # OCR_CACHE_DIR in .env name these paths.
+      - uploads:/opt/arlo/uploads
+      - waauth:/opt/arlo/.wa-auth
+      - ocrcache:/opt/arlo/.ocr-cache
+    # Loopback: the reverse proxy on the host is what faces the internet. Publishing this on
+    # 0.0.0.0 would be an app speaking plain HTTP to the world, so it is spelled out here
+    # rather than left to a variable somebody sets once and forgets.
+    ports:
+      - '127.0.0.1:9005:9005'
+    # There is no /health route, deliberately: the root path already proves the bundle
+    # loaded, the migrations applied and a worker is accepting. Anything under 500 is up.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:9005/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      # On a fresh database the first boot applies sixty-odd migrations before a worker
+      # serves, so the first success can be a while coming.
+      start_period: 180s
+      retries: 3
+
+volumes:
+  pgdata:
+  initdb:
+  uploads:
+  waauth:
+  ocrcache:

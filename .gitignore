@@ -1,0 +1,4 @@
+# bootstrap.sh writes these, and they hold every secret the instance has.
+.env
+db.env
+auth.env

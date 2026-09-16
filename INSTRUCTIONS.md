@@ -1,0 +1,280 @@
+# Arlo, self-hosted: the full setup
+
+`README.md` gets Arlo running in four commands. This is everything after that — a public
+address, the model key, the knowledge base, and each of the eight channels a customer can
+arrive on. Work down it in order; every section assumes the ones above it.
+
+`SETUP.md` beside this file is the *other* audience: an agent installing the basic stack on a
+course student's laptop, scoped to "it runs and you can sign in". If that is what you want,
+start there and come back here.
+
+Two rules that decide most of what follows.
+
+**`PUBLIC_URL` is the address people type, and everything is built from it.** OAuth redirects,
+webhook addresses, the widget snippet and the links in a customer's email all come out of that
+one variable. If it is wrong, each of them is wrong in a different place, and the error surfaces
+at the far end — in Meta's dialog, in Telegram's API, in somebody's inbox — where it reads as a
+platform problem rather than a typo in your `.env`.
+
+**Half the channels are push.** Messenger, Instagram, TikTok and the WhatsApp Cloud API are the
+platform calling *you*: they need a hostname their servers resolve over HTTPS. `127.0.0.1` is
+not one and neither is a laptop behind NAT. Baileys WhatsApp, Telegram polling and the mailbox
+connectors are the other direction and work from anywhere. Nothing is broken if you skip
+section 2 — you just get the pull half.
+
+---
+
+## 1. A public address
+
+Arlo publishes on `127.0.0.1:9005` and terminates no TLS of its own. Put a proxy in front.
+Caddy, if you have nothing:
+
+```
+arlo.example.com {
+    reverse_proxy 127.0.0.1:9005
+}
+```
+
+Then set the address in **all three** places that must agree, and restart:
+
+```sh
+sed -i 's|^PUBLIC_URL=.*|PUBLIC_URL=https://arlo.example.com|' .env
+sed -i 's|^GOTRUE_SITE_URL=.*|GOTRUE_SITE_URL=https://arlo.example.com|' auth.env
+sed -i 's|^GOTRUE_URI_ALLOW_LIST=.*|GOTRUE_URI_ALLOW_LIST=https://arlo.example.com/*|' auth.env
+docker compose up -d --wait
+```
+
+`https://`, no trailing slash, and the hostname a browser actually reaches. A mismatch between
+`PUBLIC_URL` and `GOTRUE_SITE_URL` does not fail loudly: sign-in redirects land somewhere the
+allow-list refuses, and the symptom is a login that returns to the login page.
+
+Check it from outside your own network before going on — a proxy that works on the box and not
+from the internet fails every push channel below, several hours later, silently.
+
+## 2. The model key
+
+Arlo runs with no key at all: retrieval falls back to Postgres full-text search and the bot
+declines rather than inventing an answer. To have it answer, sign in and open **Settings → the
+model provider section**, then paste one of:
+
+- an **AutoBricks** key, which is what the course issues. Arlo talks to
+  `api.autobricksai.com` natively and bills your own account.
+- an **OpenRouter** key, in `.env` as `OPENROUTER_API_KEY`, followed by a restart.
+
+The difference that matters: a key pasted in Settings is encrypted into the database under
+`SECRET_KEY` and belongs to that workspace. A key in `.env` is the instance's, shared by every
+workspace on it. On a self-hosted box with one workspace they amount to the same thing; with
+several, the Settings route is the one that keeps the bills apart.
+
+**Embeddings are worth turning on and are off by default.** Without them, retrieval is
+keyword-only and a question phrased unlike the document it should match will miss. OpenRouter
+serves them on the same key as chat:
+
+```sh
+sed -i 's|^EMBEDDINGS_URL=.*|EMBEDDINGS_URL=https://openrouter.ai/api/v1/embeddings|' .env
+docker compose up -d --wait app
+```
+
+Anything speaking OpenAI's `/v1/embeddings` works, including a local server — `EMBEDDINGS_KEY`
+is for when that endpoint has a key of its own. Chunks already stored with no embedding are
+backfilled in the background once one is configured; nothing needs re-uploading.
+
+## 3. The knowledge base
+
+Upload the documents first and connect a channel second. A bot with nothing to cite hands every
+conversation to a person, which is correct behaviour and a poor demonstration.
+
+- **Documents.** PDF, Word, text, spreadsheets. A scanned PDF has no text layer, so Arlo reads
+  the pixels with Tesseract locally — `OCR_LANGS=eng` by default, `eng+chi_sim` for two, blank
+  to switch it off. The first scan downloads about 15MB of language data into the `ocrcache`
+  volume; it costs a few seconds a page and nothing leaves the machine.
+- **A website.** The crawler refuses every host by default rather than becoming an open proxy
+  into whatever your server can reach. Name the ones it may fetch:
+
+  ```sh
+  sed -i 's|^SCRAPE_ALLOW_HOSTS=.*|SCRAPE_ALLOW_HOSTS=example.com,www.example.com,docs.example.com|' .env
+  docker compose up -d --wait app
+  ```
+
+  Subdomains are not implied. List each one.
+
+## 4. The channels
+
+Each of these is a registration you make against your own instance. Set the variables in `.env`
+and `docker compose up -d --wait app` — the connectors page reads them at boot, and a blank pair
+is a channel that reads "not set up" rather than one that half-works.
+
+### Web widget — nothing to configure
+
+Already on. **Bots → your bot → the widget snippet**, paste into the page. Served from your own
+instance, so it inherits the address in `PUBLIC_URL`.
+
+### Telegram — works anywhere
+
+Talk to `@BotFather`, `/newbot`, paste the token into the connector card. Arlo tries a webhook
+first and falls back to polling by itself. On a laptop or behind NAT, skip the attempt that
+cannot succeed:
+
+```
+TELEGRAM_POLLING=1
+POLL_SECONDS=60
+```
+
+`POLL_SECONDS=0` disables the mail sweep, reminders and the Telegram long poll together — it is
+how a process declares it does no background work at all, so leave it at 60 anywhere you want
+either.
+
+### WhatsApp, the Baileys way — works anywhere
+
+Drives a real handset over a socket, needs no public address and no Meta account. Press Connect,
+scan the QR with the phone. Credentials land in the `waauth` volume, one directory per number.
+
+Two things bite. **Never run two processes against one session** — the same credentials opened
+twice is what WhatsApp closes the connection over, and you lose both. And it is an unofficial
+client: it is the fastest way to a working number and the least durable one.
+
+### WhatsApp, the official Cloud API — needs a public address
+
+Meta's own, reached through Kapso, and push. Both variables blank switches it off:
+
+```
+KAPSO_API_KEY=
+KAPSO_WEBHOOK_SECRET=
+```
+
+Webhook URL at Kapso: `{PUBLIC_URL}/api/whatsapp/cloud`. The secret is what proves an arriving
+body is really theirs, checked as an HMAC over the raw bytes. The key is the whole Kapso
+account rather than one number, and every workspace here becomes a customer under it.
+`KAPSO_BILLING_MODE=customer_managed` — the default — keeps a business's messaging costs on
+their own Meta account, which is the honest setting; `partner_managed` moves them onto yours and
+is a pricing decision, not a configuration one.
+
+### Messenger, Instagram and TikTok — need a public address
+
+Three OAuth connectors, one app each, registered once for the instance; a workspace then
+consents per account. **The three apps are genuinely separate products and their credentials
+cannot be substituted for one another** — Instagram Login is not Facebook Login, and TikTok
+Business Messaging is not TikTok Shop. Using the wrong pair fails at the consent screen with no
+useful message.
+
+| | Redirect URI | Webhook | Variables |
+|---|---|---|---|
+| Messenger | `{PUBLIC_URL}/api/oauth/facebook` | `{PUBLIC_URL}/api/facebook/webhook` | `FB_APP_ID`, `FB_APP_SECRET`, `FB_VERIFY_TOKEN` |
+| Instagram | `{PUBLIC_URL}/api/oauth/instagram` | `{PUBLIC_URL}/api/instagram/webhook` | `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `INSTAGRAM_VERIFY_TOKEN` |
+| TikTok | `{PUBLIC_URL}/api/oauth/tiktok` | `{PUBLIC_URL}/api/tiktok/webhook` | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` |
+
+The verify token is a string you choose; the platform echoes it back once, when the webhook is
+first subscribed. The redirect URI is matched character for character — scheme, host, path, and
+no trailing slash.
+
+**The Meta trap, which costs an afternoon every time.** Meta needs *two* subscriptions and only
+one of them is Arlo's job. Arlo subscribes the page when you consent
+(`POST /{page-id}/subscribed_apps`). The **app-level** subscription — `POST
+/{app-id}/subscriptions`, which fields the app wants at all — is dashboard work nobody does,
+and with zero fields subscribed Meta sends nothing. The callback verifies, the dashboard turns
+green, the page-level call reports success, and no message ever arrives. Subscribe the fields
+at the app level too: `messages`, `message_deliveries`, `message_echoes`, `message_reads`,
+`standby`, `messaging_handovers` for Messenger; `messages`, `message_reactions`,
+`messaging_seen` for Instagram.
+
+TikTok delivers inbound only to business accounts outside the EEA, Switzerland, the UK and the
+US. That is TikTok's rule, not a setting — a connector that consents cleanly and stays quiet is
+usually this.
+
+### Email — works anywhere
+
+Gmail and Outlook, by OAuth. Register one app per provider and put the pair in `.env`:
+
+```
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+OUTLOOK_CLIENT_ID=
+OUTLOOK_CLIENT_SECRET=
+```
+
+Redirect URI `{PUBLIC_URL}/api/oauth/gmail` and `{PUBLIC_URL}/api/oauth/outlook` — `gmail`,
+not `google`, because the redirect is built from the connector's own name
+(`src/server/oauth.ts`) and Google's console matches it character for character. A workspace can bring
+its own app instead of using the instance's. Mailboxes are swept on the `POLL_SECONDS` timer,
+so a `0` there is a mailbox that never gets read.
+
+## 5. People
+
+Registration is invitation-only the moment `ADMIN_EMAILS` names anybody. The first code has to
+come from a shell, because every later one comes from an administrator and the first
+administrator does not exist yet:
+
+```sh
+docker compose exec app node scripts/invite.mjs you@example.com
+docker compose exec app node scripts/invite.mjs someone@example.com --days 30 --note "ops"
+```
+
+After that, **Admin → invitations**. A code admits one address once and expires in a fortnight
+unless you say `--forever`.
+
+Optional: Cloudflare Turnstile on the public waitlist form — `TURNSTILE_SITE_KEY` and
+`TURNSTILE_SECRET_KEY`. It is the only thing in this app that loads a script from another
+origin, and the content-security-policy is widened for that one page because of it.
+
+## 6. Backups
+
+The database is the product. The volumes beside it are a cache and a phone session.
+
+```sh
+docker compose exec -T db pg_dump -U postgres -Fc postgres > arlo-$(date +%F).dump
+```
+
+Back up `.env`, `db.env` and `auth.env` with it, **somewhere else**. `SECRET_KEY` in `.env` is
+what every stored connector token and every workspace's model key is encrypted with: with the
+dump and without that file, the rows are all still there and not one of them can be read.
+
+Restoring onto a fresh stack: bootstrap it, stop the app, restore the dump, put the *old* three
+env files back, start it.
+
+```sh
+docker compose stop app
+docker compose exec -T db pg_restore -U postgres -d postgres --clean --if-exists < arlo-2026-09-16.dump
+docker compose up -d --wait app
+```
+
+## 7. Upgrading
+
+```sh
+docker compose pull app && docker compose up -d --wait app
+```
+
+New migrations apply themselves at boot, before the first worker serves. If one fails the
+container stays down and says why in `docker compose logs app` — a worker answering against a
+schema that did not catch up is the worse outcome, so that is deliberate. Roll back by pinning
+the previous digest in `ARLO_IMAGE` and starting again; note that a migration already applied is
+not undone by running an older image.
+
+## 8. When something is wrong
+
+| What you see | What it actually is |
+|---|---|
+| Sign-in returns to the sign-in page | `PUBLIC_URL` and `GOTRUE_SITE_URL` disagree, or the allow-list does not cover the address |
+| "Nobody is signed in", nothing in any log | `SUPABASE_JWT_SECRET` in `.env` and `GOTRUE_JWT_SECRET` in `auth.env` are not the same value. They are verified locally; a mismatch is silent by construction |
+| `auth` restarting, `converting '' to type int` | A blank `GOTRUE_SMTP_*` value. GoTrue parses the port before anything else — absent is fine, empty is fatal |
+| App container restarting on a fresh install | Read the log: a failed migration stops the boot on purpose |
+| First start takes minutes | It is applying eighty migrations to an empty database. Expected, once |
+| Consent fails immediately, no message | The redirect URI does not match exactly — scheme, host, trailing slash |
+| A connector connects, then silence | Push channel on an address the platform cannot reach, or the Meta app-level subscription in section 4 |
+| Bot answers "I cannot answer that" to everything | No model key, or no documents to cite. Both are the honest failure, not a bug |
+| Answers miss documents that obviously match | Embeddings are off — section 2 |
+| A crawl fetches nothing | The host is not in `SCRAPE_ALLOW_HOSTS`, subdomains included |
+
+Logs, for any of it:
+
+```sh
+docker compose logs -f app
+docker compose logs auth --tail 50
+docker compose ps
+```
+
+## What is not here
+
+TLS certificates, DNS, firewalling and the machine itself are yours. So is the decision to put
+this on the public internet at all: Arlo holds a company's internal documents and its customers'
+conversations, and a stack that is loopback-only behind a proxy you control is a smaller
+problem than one that is not.
