@@ -28,24 +28,57 @@ section 2 — you just get the pull half.
 
 ## 1. Install it
 
-**Before you start.** Docker Desktop, installed and running. On Windows that means the WSL 2
-backend — and because `bootstrap.sh` is a shell script, run everything below in **Git Bash or a
-WSL terminal**, not PowerShell. Budget about a gigabyte of disk for the images and the
-database.
+Arlo runs in Docker, so the install is the same four commands on Windows, macOS and Linux.
+What differs is only what you install first and which terminal you type them into.
+
+### What you need first
+
+| | Install | Type the commands in |
+|---|---|---|
+| **Windows 10/11** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) with the **WSL 2** backend (its installer sets this up), plus [Git for Windows](https://git-scm.com/download/win) | **Git Bash** or a **WSL** shell — *not* PowerShell or CMD |
+| **macOS 12+** | [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Apple Silicon or Intel), or OrbStack | Terminal |
+| **Linux** | Docker Engine + the Compose plugin — `docker-ce` and `docker-compose-plugin` from [Docker's repository](https://docs.docker.com/engine/install/), not the distribution's older `docker.io` | Any shell |
+
+Docker Engine 24 or newer, with Compose v2.20+ — `docker compose version` tells you. The stack
+uses `--wait` and a run-once service that Postgres waits for, and older Compose has neither.
+Give Docker about 4GB of memory and 2GB of disk.
+
+**Windows: it must be Git Bash or WSL.** `bootstrap.sh` is a shell script and PowerShell cannot
+run it. Both of those shells ship the four things it needs — `openssl`, `date`, `tr`, `printf` —
+and Git Bash comes with Git for Windows, so there is nothing else to install.
+
+**Linux: put yourself in the `docker` group** or every command below needs `sudo`:
+
+```sh
+sudo usermod -aG docker $USER    # then log out and back in
+```
+
+### Ask for the email first
+
+The second argument to `bootstrap.sh` is not a formality and it cannot be a placeholder. It
+becomes `ADMIN_EMAILS` — the only account that can reach `/admin` — and it has to match the
+address invited in step 4, or the account that gets created cannot administer anything.
+
+**Ask the person who will own this instance for their real email address before you start.** If
+you are setting Arlo up on somebody else's behalf, it is *their* address, not yours. Changing it
+afterwards means editing `.env` and restarting; getting it right now costs one question.
+
+### The four commands
 
 ```sh
 # 1. Get the files
 git clone https://github.com/adit-firdaus/arlo-ai-selfhost.git arlo
 cd arlo
 
-# 2. Generate every secret. Once, and only once — see the warning below
-./bootstrap.sh http://127.0.0.1:9005 you@example.com
+# 2. Generate every secret. Once, and only once — see the warnings below.
+#    Replace the email with the real address of whoever will administer this instance.
+./bootstrap.sh http://127.0.0.1:9005 their.real.address@company.com
 
 # 3. Start it
 docker compose up -d --wait
 
-# 4. Issue the first registration code
-docker compose exec app node scripts/invite.mjs you@example.com
+# 4. Issue the first registration code, for that same address
+docker compose exec app node scripts/invite.mjs their.real.address@company.com
 ```
 
 That last command prints a code and the address to use it at:
@@ -58,19 +91,34 @@ Register at http://127.0.0.1:9005/login?code=ARLO-XXXX-XXXX
 Open it, choose your own password, and you are in. There is no separate registration page — the
 code is what turns sign-in into registration.
 
-**Four things about those four commands.**
+### Four things about those four commands
 
-The email in step 2 becomes `ADMIN_EMAILS`, so it has to be the same address you invite in step
-4: that is the account that can reach `/admin`. The first `docker compose up` pulls about 120MB
-and then applies eighty migrations to an empty database before it serves anything, so give it a
-few minutes and watch `docker compose logs -f app` if you want to see it happen. `bootstrap.sh`
-refuses to run twice, and that refusal is protecting you — rerolling the secrets orphans the
-database volume and makes everything already stored in it unreadable. And `docker compose down`
-is safe, while `docker compose down -v` destroys the database; it is the only command in this
-file that loses anything.
+The first `docker compose up` pulls about 120MB and then applies eighty migrations to an empty
+database before it serves anything, so give it a few minutes; `docker compose logs -f app` shows
+them going in. `bootstrap.sh` refuses to run twice, and that refusal is protecting you —
+rerolling the secrets orphans the database volume and makes everything already stored in it
+unreadable. `docker compose down` is safe, while `docker compose down -v` destroys the database;
+it is the only command in this file that loses anything. And until you finish section 3, Arlo
+runs but declines to answer rather than inventing anything, which is the designed behaviour and
+not a broken install.
 
-Until you finish section 3, Arlo runs but declines to answer rather than inventing anything.
-That is the designed behaviour and not a broken install.
+### When the install itself will not go
+
+Docker problems look like Arlo problems and are not. In rough order of how often they happen:
+
+| What you see | What to do |
+|---|---|
+| `docker: command not found` | Docker is not installed, or on Windows you are in a shell that cannot see it — reopen Git Bash after installing Docker Desktop |
+| `Cannot connect to the Docker daemon` | Docker Desktop is not running (Windows, macOS) — start it and wait for the whale to settle. On Linux: `sudo systemctl start docker` |
+| `permission denied ... /var/run/docker.sock` | Linux, and you are not in the `docker` group — see above, and log out and back in for it to take |
+| `WSL 2 installation is incomplete` | Windows — run `wsl --install` in an admin PowerShell, reboot, then start Docker Desktop again |
+| Docker Desktop will not start at all | Windows — virtualization is off in the BIOS/UEFI. Enable Intel VT-x or AMD-V. Task Manager → Performance → CPU shows "Virtualization: Enabled" when it is on |
+| `./bootstrap.sh: bad interpreter` or `\r: command not found` | The file was saved with Windows line endings. `git clone` does not do this; an editor did. Re-clone, or run `sed -i 's/\r$//' bootstrap.sh` |
+| `bind: address already in use` on 9005 | Something else holds the port. Stop it, or change both `ports:` in `compose.yml` and the port in `PUBLIC_URL` |
+| `--wait` times out while the log still scrolls migrations | Not a failure. The first boot is slow — run `docker compose up -d --wait` again and it will pass |
+| The app container restarts over and over | Read `docker compose logs app`. A failed migration stops the boot deliberately rather than serving against a half-built schema |
+| Everything is very slow, or containers are killed | Docker has too little memory. Docker Desktop → Settings → Resources, give it 4GB |
+| `no matching manifest for ...` | Not possible with this image — it is published for `linux/amd64` and `linux/arm64`, so Apple Silicon needs no Rosetta and no `--platform` flag |
 
 ## 2. A public address
 
@@ -89,10 +137,17 @@ arlo.example.com {
 
 Then set the address in **all three** places that must agree, and restart:
 
+Open the two files in any editor and change three lines:
+
+```
+.env       PUBLIC_URL=https://arlo.example.com
+auth.env   GOTRUE_SITE_URL=https://arlo.example.com
+auth.env   GOTRUE_URI_ALLOW_LIST=https://arlo.example.com/*
+```
+
+Then restart:
+
 ```sh
-sed -i 's|^PUBLIC_URL=.*|PUBLIC_URL=https://arlo.example.com|' .env
-sed -i 's|^GOTRUE_SITE_URL=.*|GOTRUE_SITE_URL=https://arlo.example.com|' auth.env
-sed -i 's|^GOTRUE_URI_ALLOW_LIST=.*|GOTRUE_URI_ALLOW_LIST=https://arlo.example.com/*|' auth.env
 docker compose up -d --wait
 ```
 
@@ -122,8 +177,13 @@ several, the Settings route is the one that keeps the bills apart.
 keyword-only and a question phrased unlike the document it should match will miss. OpenRouter
 serves them on the same key as chat:
 
+Set this line in `.env` and restart:
+
+```
+EMBEDDINGS_URL=https://openrouter.ai/api/v1/embeddings
+```
+
 ```sh
-sed -i 's|^EMBEDDINGS_URL=.*|EMBEDDINGS_URL=https://openrouter.ai/api/v1/embeddings|' .env
 docker compose up -d --wait app
 ```
 
@@ -143,8 +203,11 @@ conversation to a person, which is correct behaviour and a poor demonstration.
 - **A website.** The crawler refuses every host by default rather than becoming an open proxy
   into whatever your server can reach. Name the ones it may fetch:
 
+  ```
+  SCRAPE_ALLOW_HOSTS=example.com,www.example.com,docs.example.com
+  ```
+
   ```sh
-  sed -i 's|^SCRAPE_ALLOW_HOSTS=.*|SCRAPE_ALLOW_HOSTS=example.com,www.example.com,docs.example.com|' .env
   docker compose up -d --wait app
   ```
 

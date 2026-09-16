@@ -70,16 +70,21 @@ than winding up early.
   `SETUP_URL`, a UAC approval, or a return after a restart as a cue to re-read live state and
   pick up at `nextAction`.
 
-**When to involve the user.** Most of this runs unattended. Four things genuinely need them,
+**When to involve the user.** Most of this runs unattended. Five things genuinely need them,
 each asked one at a time:
 
+- **their email address** — ask for it early, before section 4 needs it, and never assume one.
+  It is not a formality: it becomes `ADMIN_EMAILS`, which is the only account that can reach
+  `/admin`, and the same address has to be the one invited in section 5. An address you guessed
+  from a git config, a filename, or an earlier conversation is an instance whose administrator
+  cannot administer it. If you already believe you know it, confirm it rather than using it,
 - an Administrator or restart step, if Docker turns out to need one (section 2),
 - the AutoBricks API key (section 3),
 - choosing their own password, at the registration page (section 5) — you must never invent
   or type a person's password for them,
 - an AutoBricks credit or key problem only the account owner can fix.
 
-Beyond those four, avoid asking the user to run diagnostics, inspect Docker or edit files —
+Beyond those five, avoid asking the user to run diagnostics, inspect Docker or edit files —
 that's the work they asked you to take on.
 
 **Shells and parallelism.** Keep up to two persistent shells: a coordinator shell that owns
@@ -180,7 +185,13 @@ it goes into Arlo by the user's own hands in section 5, and into no file you wri
 
 ## 4. Write the stack
 
-Pick the port first. Use `9005`; if something already listens on it, take the first free port
+**Ask for the email now if you have not already.** One question: *"What email address should
+administer this Arlo?"* Everything below writes it into `ADMIN_EMAILS`, section 5 invites that
+exact address, and the two must match. Wait for the answer rather than filling in a placeholder
+you intend to correct later — `.env` is written once and correcting it means an edit and a
+restart.
+
+Pick the port next. Use `9005`; if something already listens on it, take the first free port
 from `9015, 9025, 9035` and use it consistently everywhere below. Never stop an unrelated
 listener.
 

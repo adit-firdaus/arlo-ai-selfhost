@@ -6,9 +6,14 @@ conversations and your customers' data stay on your machine.
 ```sh
 git clone https://github.com/adit-firdaus/arlo-ai-selfhost.git arlo
 cd arlo
-./bootstrap.sh https://arlo.example.com you@example.com
+./bootstrap.sh https://arlo.example.com their.real.address@company.com
 docker compose up -d --wait
 ```
+
+That email is the administrator's, not a placeholder — it becomes `ADMIN_EMAILS`, and the same
+address has to be the one invited below. Windows: run these in Git Bash or WSL, not PowerShell.
+`INSTRUCTIONS.md` section 1 has the per-platform prerequisites and what to do when Docker
+itself misbehaves.
 
 The application image is pulled, not built: this repository holds the stack, not Arlo's
 source. `ARLO_IMAGE` in your shell overrides which image that is, and a real installation
