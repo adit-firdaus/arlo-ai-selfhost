@@ -14,17 +14,9 @@ The application image is pulled, not built: this repository holds the stack, not
 source. `ARLO_IMAGE` in your shell overrides which image that is, and a real installation
 should pin a digest rather than follow the `main` tag.
 
-**While `ghcr.io/autobricks-ai/arlo-ai` is still a private package, that pull fails** with an
-authentication error rather than a permission one. Until it is published, point the stack at an
-image you have built yourself from the application repository:
-
-```sh
-ARLO_IMAGE=arlo:local docker compose up -d --wait
-```
-
-Everything else in this repository is exercised by that — the stack was verified end to end
-this way, on empty volumes: the seed service, the roles, all eighty migrations, and a first
-registration code.
+The image is `ghcr.io/adit-firdaus/arlo-ai-selfhost`, built from the application source and
+published beside this repository. `ARLO_IMAGE=arlo:local docker compose up -d --wait` runs a
+build of your own instead, if you have one.
 
 Then point a TLS proxy at `127.0.0.1:9005` — [below](#the-proxy-in-front) — and open the
 address you gave. Everything else is configuration you can do later, from inside the app.
